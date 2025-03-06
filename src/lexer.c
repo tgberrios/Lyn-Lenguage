@@ -37,18 +37,46 @@ static char peek(void) {
     return source[position];
 }
 
-static void skipWhitespace(void) {
-    while (isspace(source[position])) {
-        if (source[position] == '\n') {
-            line++;
-            col = 0;
+/* Ignora espacios en blanco y comentarios (línea y bloque) */
+static void skipWhitespaceAndComments(void) {
+    while (1) {
+        // Saltar espacios y saltos de línea
+        while (isspace(source[position])) {
+            if (source[position] == '\n') {
+                line++;
+                col = 0;
+            }
+            advance();
         }
-        advance();
+        // Saltar comentario de línea: //
+        if (source[position] == '/' && source[position+1] == '/') {
+            while (source[position] != '\n' && source[position] != '\0')
+                advance();
+            continue;  // Vuelve a comprobar
+        }
+        // Saltar comentario de bloque: /* ... */
+        if (source[position] == '/' && source[position+1] == '*') {
+            advance(); // consume '/'
+            advance(); // consume '*'
+            while (!(source[position] == '*' && source[position+1] == '/') && source[position] != '\0') {
+                if (source[position] == '\n') {
+                    line++;
+                    col = 0;
+                }
+                advance();
+            }
+            if (source[position] != '\0') {
+                advance(); // consume '*'
+                advance(); // consume '/'
+            }
+            continue; // Vuelve a comprobar
+        }
+        break;
     }
 }
 
 Token getNextToken(void) {
-    skipWhitespace();
+    skipWhitespaceAndComments();
     if (source[position] == '\0') {
         Token token = { TOKEN_EOF, "EOF", line, col };
         return token;
@@ -57,7 +85,7 @@ Token getNextToken(void) {
     char c = advance();
     Token token = { 0, "", line, col - 1 };
 
-    // Manejo de identificadores y palabras clave.
+    // Identificadores y palabras clave.
     if (isalpha(c) || c == '_') {
         int start = position - 1;
         while (isalnum(source[position]) || source[position] == '_')
@@ -89,7 +117,7 @@ Token getNextToken(void) {
         return token;
     }
 
-    // Manejo de números.
+    // Números.
     if (isdigit(c) || (c == '.' && isdigit(peek()))) {
         int start = position - 1;
         while (isdigit(source[position]) || source[position] == '.')
@@ -101,7 +129,7 @@ Token getNextToken(void) {
         return token;
     }
 
-    // Manejo de strings.
+    // Cadenas.
     if (c == '"') {
         int start = position;
         while (source[position] != '"' && source[position] != '\0')
@@ -113,12 +141,12 @@ Token getNextToken(void) {
         int length = position - start;
         strncpy(token.lexeme, source + start, length);
         token.lexeme[length] = '\0';
-        advance(); // Salta la comilla de cierre
+        advance(); // consume la comilla de cierre
         token.type = TOKEN_STRING;
         return token;
     }
 
-    // Manejo de caracteres especiales y símbolos.
+    // Operadores y símbolos.
     switch (c) {
         case '=':
             if (peek() == '=') {
@@ -218,7 +246,6 @@ Token getNextToken(void) {
                 snprintf(token.lexeme, sizeof(token.lexeme), "Unknown character");
             }
             break;
-        // Agregar casos para los corchetes
         case '[':
             token.type = TOKEN_LBRACKET;
             strcpy(token.lexeme, "[");

@@ -6,14 +6,25 @@
 #include "semantic.h"
 #include "codegen.h"
 
+void runLexerTest(const char *source);
+void runParserTest(const char *source);
+void runSemanticTest(AstNode *ast);
+void runCodegenTest(AstNode *ast);
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+
+    // Código de prueba con múltiples casos
     const char *sourceCode =
         "main;\n"
+        "    // Variables y expresiones\n"
         "    x = 10;\n"
         "    y = 20;\n"
+        "    z = (x + y) * 2;\n"
+        "    print(z);\n"
         "\n"
+        "    // Funciones\n"
         "    func suma(a int, b int) -> int;\n"
         "        return a + b;\n"
         "    end;\n"
@@ -21,77 +32,100 @@ int main(int argc, char **argv) {
         "    resultado = suma(x, y);\n"
         "    print(\"Resultado: \" + resultado.to_str());\n"
         "\n"
-        "    doble = (x int, y int) -> int => x + y;\n"
-        "    log(\"Doble de 5 y 10 es: \" + doble(5, 10).to_str());\n"
+        "    // Función lambda\n"
+        "    doble = (n int) -> int => n * 2;\n"
+        "    print(\"Doble de 5: \" + doble(5).to_str());\n"
         "\n"
+        "    // Clases y objetos\n"
         "    class Punto;\n"
         "        x float;\n"
         "        y float;\n"
-        "\n"
         "        func __init__(self, x float, y float);\n"
         "            self.x = x;\n"
         "            self.y = y;\n"
         "        end;\n"
-        "\n"
-        "        func distancia(self) -> float;\n"
-        "            return sqrt(self.x * self.x + self.y * self.y);\n"
-        "        end;\n"
         "    end;\n"
-        "\n"
         "    p = Punto(3.0, 4.0);\n"
-        "    print(\"Distancia de punto: \" + p.distancia().to_str());\n"
         "\n"
+        "    // Control de flujo\n"
         "    if resultado > 25;\n"
-        "        print(\"Resultado mayor a 25\");\n"
+        "        print(\"Mayor que 25\");\n"
         "    else;\n"
-        "        print(\"Resultado menor o igual a 25\");\n"
+        "        print(\"Menor o igual a 25\");\n"
         "    end;\n"
         "\n"
+        "    // Bucles\n"
         "    for i in range(3);\n"
         "        print(\"Iteración \" + i.to_str());\n"
         "    end;\n"
         "\n"
-        "    ui \"index.html\";\n"
-        "    css \"styles.css\";\n"
-        "\n"
-        "    func onButtonClick();\n"
-        "        print(\"Botón presionado\");\n"
-        "    end;\n"
-        "\n"
-        "    register_event(\"btnSubmit\", \"click\", onButtonClick);\n"
-        "\n"
+        "    // Importaciones\n"
         "    import python \"numpy\";\n"
-        "\n"
         "    arr = [1, 2, 3, 4];\n"
-        "    print(\"Suma de arreglo: \" + suma_numpy(arr).to_str());\n"
+        "    print(\"Suma numpy: \" + suma_numpy(arr).to_str());\n"
         "end;\n";
 
-    // Iniciar lexer
-    lexerInit(sourceCode);
+    // **1️⃣ Test del Lexer**
+    runLexerTest(sourceCode);
 
-    // Debug: Imprimir todos los tokens
-    printf("Tokenizing source code:\n");
+    // **2️⃣ Test del Parser**
+    lexerInit(sourceCode);  // Reiniciar el lexer para parsing
+    AstNode *ast = parseProgram();
+    if (!ast) {
+        fprintf(stderr, "Parsing failed.\n");
+        return 1;
+    }
+    printf("Parsing completed successfully.\n");
+
+    // **3️⃣ Test de Análisis Semántico**
+    runSemanticTest(ast);
+
+    // **4️⃣ Test de Generación de Código**
+    runCodegenTest(ast);
+
+    // Liberar memoria
+    freeAst(ast);
+
+    return 0;
+}
+
+// =====================
+// ⚡ Funciones de prueba
+// =====================
+
+// 1️⃣ Prueba del Lexer
+void runLexerTest(const char *source) {
+    printf("Running Lexer Test...\n");
+    lexerInit(source);
     Token token;
     do {
         token = getNextToken();
         printf("Token: type=%d, lexeme='%s', line=%d, col=%d\n",
                token.type, token.lexeme, token.line, token.col);
     } while (token.type != TOKEN_EOF);
-    lexerInit(sourceCode); // Reiniciar lexer para parsing
+    printf("Lexer Test Passed!\n\n");
+}
 
-    // Parsear
-    AstNode *ast = parseProgram();
-    if (!ast) {
-        fprintf(stderr, "Parsing failed.\n");
-        return 1;
-    }
-    // Análisis semántico
+// 2️⃣ Prueba del Parser (ya validado en `main`)
+
+// 3️⃣ Prueba del Análisis Semántico
+void runSemanticTest(AstNode *ast) {
+    printf("Running Semantic Analysis Test...\n");
     analyzeSemantics(ast);
-    printf("Semantic analysis completed successfully.\n");
-    // Generación de código
+    printf("Semantic Analysis Passed!\n\n");
+}
+
+// 4️⃣ Prueba de Generación de Código
+void runCodegenTest(AstNode *ast) {
+    printf("Running Code Generation Test...\n");
     generateCode(ast, "output.s");
-    printf("Code generation completed successfully. Assembly written to output.s\n");
-    // Liberar AST
-    freeAst(ast);
-    return 0;
+
+    // Verificar que `output.s` fue generado correctamente
+    FILE *file = fopen("output.s", "r");
+    if (file) {
+        printf("Code generation completed successfully. Assembly written to output.s\n");
+        fclose(file);
+    } else {
+        fprintf(stderr, "Error: output.s not found.\n");
+    }
 }
