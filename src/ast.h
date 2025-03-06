@@ -1,6 +1,9 @@
 #ifndef AST_H
 #define AST_H
 
+#include <stddef.h>
+
+/* Enumeración de los tipos de nodos del AST */
 typedef enum {
     AST_PROGRAM,
     AST_VAR_ASSIGN,
@@ -23,15 +26,18 @@ typedef enum {
     AST_METHOD_CALL
 } AstNodeType;
 
-typedef struct AstNode AstNode; // Declaración adelantada para usar AstNode * en MethodCallNode
+/* Declaración adelantada para usar en MethodCallNode */
+typedef struct AstNode AstNode;
 
+/* Nodo para llamadas a métodos */
 typedef struct {
-    AstNode *object;         // Puntero a AstNode
+    AstNode *object;
     char method[256];
-    AstNode **arguments;     // Array de punteros a AstNode
+    AstNode **arguments;
     int argCount;
 } MethodCallNode;
 
+/* Definición del nodo AST */
 struct AstNode {
     AstNodeType type;
     union {
@@ -121,7 +127,21 @@ struct AstNode {
     };
 };
 
+/**
+ * @brief Crea un nuevo nodo AST del tipo especificado usando el memory pool.
+ *
+ * @param type Tipo del nodo AST.
+ * @return AstNode* Puntero al nodo AST creado.
+ */
 AstNode *createAstNode(AstNodeType type);
+
+/**
+ * @brief Libera la memoria utilizada por un nodo AST y sus descendientes.
+ *
+ * Retorna cada nodo al memory pool.
+ *
+ * @param node Puntero al nodo AST a liberar.
+ */
 void freeAstNode(AstNode *node);
 
-#endif
+#endif /* AST_H */

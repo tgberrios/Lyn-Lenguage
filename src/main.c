@@ -5,9 +5,10 @@
 #include "ast.h"
 #include "semantic.h"
 #include "codegen.h"
+#include "memory.h"  // Módulo de gestión de memoria
 
+/* Prototipos de funciones de prueba */
 void runLexerTest(const char *source);
-void runParserTest(const char *source);
 void runSemanticTest(AstNode *ast);
 void runCodegenTest(AstNode *ast);
 
@@ -15,7 +16,7 @@ int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
-    // Código de prueba con múltiples casos
+    /* Código de prueba con múltiples casos */
     const char *sourceCode =
         "main;\n"
         "    // Variables y expresiones\n"
@@ -65,10 +66,10 @@ int main(int argc, char **argv) {
         "    print(\"Suma numpy: \" + suma_numpy(arr).to_str());\n"
         "end;\n";
 
-    // **1️⃣ Test del Lexer**
+    /* 1️⃣ Test del Lexer */
     runLexerTest(sourceCode);
 
-    // **2️⃣ Test del Parser**
+    /* 2️⃣ Test del Parser */
     lexerInit(sourceCode);  // Reiniciar el lexer para parsing
     AstNode *ast = parseProgram();
     if (!ast) {
@@ -77,23 +78,27 @@ int main(int argc, char **argv) {
     }
     printf("Parsing completed successfully.\n");
 
-    // **3️⃣ Test de Análisis Semántico**
+    /* 3️⃣ Test de Análisis Semántico */
     runSemanticTest(ast);
 
-    // **4️⃣ Test de Generación de Código**
+    /* 4️⃣ Test de Generación de Código */
     runCodegenTest(ast);
 
-    // Liberar memoria
+    /* Liberar memoria: freeAst utiliza internamente memory_pool_free para retornar los nodos al pool */
     freeAst(ast);
+
+    /* Opcional: si deseas volcar estadísticas del pool o destruirlo, puedes hacerlo aquí.
+       Por ejemplo, si hubieras expuesto una función destroyAstPool() en el módulo AST,
+       podrías llamarla antes de finalizar. */
 
     return 0;
 }
 
-// =====================
-// ⚡ Funciones de prueba
-// =====================
+/* ===================== */
+/* ⚡ Funciones de prueba */
+/* ===================== */
 
-// 1️⃣ Prueba del Lexer
+/* Prueba del Lexer */
 void runLexerTest(const char *source) {
     printf("Running Lexer Test...\n");
     lexerInit(source);
@@ -106,21 +111,19 @@ void runLexerTest(const char *source) {
     printf("Lexer Test Passed!\n\n");
 }
 
-// 2️⃣ Prueba del Parser (ya validado en `main`)
-
-// 3️⃣ Prueba del Análisis Semántico
+/* Prueba del Análisis Semántico */
 void runSemanticTest(AstNode *ast) {
     printf("Running Semantic Analysis Test...\n");
     analyzeSemantics(ast);
     printf("Semantic Analysis Passed!\n\n");
 }
 
-// 4️⃣ Prueba de Generación de Código
+/* Prueba de Generación de Código */
 void runCodegenTest(AstNode *ast) {
     printf("Running Code Generation Test...\n");
     generateCode(ast, "output.s");
 
-    // Verificar que `output.s` fue generado correctamente
+    /* Verificar que output.s fue generado correctamente */
     FILE *file = fopen("output.s", "r");
     if (file) {
         printf("Code generation completed successfully. Assembly written to output.s\n");

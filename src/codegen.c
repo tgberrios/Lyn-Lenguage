@@ -1,9 +1,11 @@
 #include "codegen.h"
 #include "ast.h"
+#include "memory.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* Definición de la tabla de símbolos para el backend */
 typedef struct Symbol {
     char name[256];
     struct Symbol *next;
@@ -11,18 +13,27 @@ typedef struct Symbol {
 
 static Symbol *symbolTable = NULL;
 
+/**
+ * @brief Agrega un símbolo a la tabla.
+ *
+ * Usa memory_alloc para asignar memoria y agrega el símbolo al inicio de la lista.
+ *
+ * @param name Nombre del símbolo.
+ */
 static void addSymbol(const char *name) {
-    Symbol *sym = (Symbol *)malloc(sizeof(Symbol));
-    if (!sym) {
-        fprintf(stderr, "Memory allocation error in codegen.\n");
-        exit(1);
-    }
-    strncpy(sym->name, name, sizeof(sym->name)-1);
-    sym->name[sizeof(sym->name)-1] = '\0';
+    Symbol *sym = (Symbol *)memory_alloc(sizeof(Symbol));
+    strncpy(sym->name, name, sizeof(sym->name) - 1);
+    sym->name[sizeof(sym->name) - 1] = '\0';
     sym->next = symbolTable;
     symbolTable = sym;
 }
 
+/**
+ * @brief Verifica si un símbolo se encuentra en la tabla.
+ *
+ * @param name Nombre del símbolo.
+ * @return int 1 si se encuentra, 0 en caso contrario.
+ */
 static int isSymbolInTable(const char *name) {
     Symbol *sym = symbolTable;
     while (sym) {
@@ -33,16 +44,28 @@ static int isSymbolInTable(const char *name) {
     return 0;
 }
 
+/**
+ * @brief Libera toda la tabla de símbolos.
+ */
 static void freeSymbolTable() {
     Symbol *sym = symbolTable;
     while (sym) {
         Symbol *tmp = sym;
         sym = sym->next;
-        free(tmp);
+        memory_free(tmp);
     }
     symbolTable = NULL;
 }
 
+/**
+ * @brief Genera código ensamblador para una expresión.
+ *
+ * Esta función maneja casos básicos y realiza constant folding para expresiones
+ * en las que ambos operandos son literales numéricos.
+ *
+ * @param expr Puntero al nodo AST de la expresión.
+ * @param fp Puntero al archivo donde se escribe el ensamblador.
+ */
 static void generateExpression(AstNode *expr, FILE *fp) {
     switch(expr->type) {
         case AST_NUMBER_LITERAL:
@@ -55,7 +78,7 @@ static void generateExpression(AstNode *expr, FILE *fp) {
             fprintf(fp, "    mov rax, [%s]\n", expr->identifier.name);
             break;
         case AST_BINARY_OP: {
-            // Constant folding: si ambos operandos son literales numéricos, evaluamos en compilación.
+            /* Constant folding: si ambos operandos son literales numéricos, evaluamos en compilación. */
             if (expr->binaryOp.left->type == AST_NUMBER_LITERAL &&
                 expr->binaryOp.right->type == AST_NUMBER_LITERAL) {
                 double leftVal = expr->binaryOp.left->numberLiteral.value;
@@ -92,18 +115,26 @@ static void generateExpression(AstNode *expr, FILE *fp) {
             break;
         }
         default:
-            // En lugar de una simple advertencia, mostramos el tipo del nodo.
+            /* En caso de nodo no soportado, se genera una advertencia en el ensamblador. */
             fprintf(fp, "    ; ERROR: Node type %d not supported in codegen\n", expr->type);
     }
 }
 
+/**
+ * @brief Genera código para una sentencia.
+ *
+ * Dependiendo del tipo de nodo AST, esta función genera el código adecuado.
+ *
+ * @param node Nodo AST de la sentencia.
+ * @param fp Puntero al archivo donde se escribe el código ensamblador.
+ */
 static void generateStatement(AstNode *node, FILE *fp) {
     if (node->type == AST_VAR_ASSIGN) {
-        // Declaración o asignación: definimos la variable en .data
+        /* Para asignaciones: se agrega la variable a la tabla de símbolos si no existe. */
         if (!isSymbolInTable(node->varAssign.name)) {
             addSymbol(node->varAssign.name);
         }
-        // Aquí podrías agregar código para evaluar y almacenar el valor, si fuera necesario.
+        /* Aquí podrías agregar código para evaluar y almacenar el valor en memoria. */
     } else if (node->type == AST_PRINT_STMT) {
         generateExpression(node->printStmt.expr, fp);
         fprintf(fp, "    mov rsi, rax\n");
@@ -124,13 +155,22 @@ static void generateStatement(AstNode *node, FILE *fp) {
     }
 }
 
+/**
+ * @brief Genera código ensamblador a partir del AST y lo escribe en un archivo.
+ *
+ * Esta función recorre el AST, construye la tabla de símbolos y genera las secciones
+ * de datos y texto del ensamblador.
+ *
+ * @param root Puntero al nodo raíz del AST.
+ * @param filename Nombre del archivo de salida.
+ */
 void generateCode(AstNode *root, const char *filename) {
     FILE *fp = fopen(filename, "w");
     if (!fp) {
         fprintf(stderr, "Error opening file for code generation.\n");
         exit(1);
     }
-    // Recorremos el AST para construir la tabla de símbolos
+    /* Recorrer el AST para construir la tabla de símbolos */
     for (int i = 0; i < root->program.statementCount; i++) {
         AstNode *stmt = root->program.statements[i];
         if (stmt->type == AST_VAR_ASSIGN) {

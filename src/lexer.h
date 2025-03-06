@@ -1,6 +1,9 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+/**
+ * Enumeración de los tipos de tokens.
+ */
 typedef enum {
     TOKEN_EOF = 0,
     TOKEN_IDENTIFIER,      // 1
@@ -45,23 +48,30 @@ typedef enum {
     TOKEN_RBRACKET         // 40: ]
 } TokenType;
 
+/**
+ * Estructura que representa un token.
+ */
 typedef struct {
-    TokenType type;
-    char lexeme[256];
-    int line;
-    int col;
+    TokenType type;         ///< Tipo del token.
+    char lexeme[256];       ///< Cadena del token.
+    int line;               ///< Línea donde aparece.
+    int col;                ///< Columna donde aparece.
 } Token;
 
+/**
+ * Estado del lexer.
+ */
 typedef struct {
-    const char *source;
-    int position;
-    int line;
-    int col;
+    const char *source;     ///< Fuente de texto.
+    int position;           ///< Posición actual en la fuente.
+    int line;               ///< Línea actual.
+    int col;                ///< Columna actual.
 } LexerState;
 
+/* Funciones públicas del lexer */
 void lexerInit(const char *source);
 Token getNextToken(void);
 LexerState lexSaveState(void);
 void lexRestoreState(LexerState state);
 
-#endif
+#endif /* LEXER_H */

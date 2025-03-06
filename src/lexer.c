@@ -1,14 +1,26 @@
 #include "lexer.h"
+#include "memory.h"
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef DEBUG_MEMORY
+    #define DBG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+    #define DBG_PRINT(...) /* No hace nada */
+#endif
 
 static const char *source;
 static int position;
 static int line = 1;
 static int col = 1;
 
+/**
+ * @brief Inicializa el lexer con la fuente de entrada.
+ *
+ * @param src Puntero a la cadena de entrada.
+ */
 void lexerInit(const char *src) {
     source = src;
     position = 0;
@@ -16,11 +28,21 @@ void lexerInit(const char *src) {
     col = 1;
 }
 
+/**
+ * @brief Guarda el estado actual del lexer.
+ *
+ * @return LexerState Estado actual del lexer.
+ */
 LexerState lexSaveState(void) {
     LexerState state = { source, position, line, col };
     return state;
 }
 
+/**
+ * @brief Restaura el estado del lexer.
+ *
+ * @param state Estado a restaurar.
+ */
 void lexRestoreState(LexerState state) {
     source = state.source;
     position = state.position;
@@ -28,19 +50,36 @@ void lexRestoreState(LexerState state) {
     col = state.col;
 }
 
+/**
+ * @brief Avanza un carácter en la fuente.
+ *
+ * Incrementa la posición y la columna, y retorna el carácter leído.
+ *
+ * @return char Carácter avanzado.
+ */
 static char advance(void) {
     col++;
     return source[position++];
 }
 
+/**
+ * @brief Retorna el carácter actual sin avanzar la posición.
+ *
+ * @return char Carácter actual.
+ */
 static char peek(void) {
     return source[position];
 }
 
-/* Ignora espacios en blanco y comentarios (línea y bloque) */
+/**
+ * @brief Omite espacios en blanco, saltos de línea y comentarios.
+ *
+ * Salta todos los espacios, saltos de línea y comentarios (línea y bloque)
+ * para posicionar el lexer en el siguiente token relevante.
+ */
 static void skipWhitespaceAndComments(void) {
     while (1) {
-        // Saltar espacios y saltos de línea
+        /* Saltar espacios y saltos de línea. */
         while (isspace(source[position])) {
             if (source[position] == '\n') {
                 line++;
@@ -48,17 +87,17 @@ static void skipWhitespaceAndComments(void) {
             }
             advance();
         }
-        // Saltar comentario de línea: //
-        if (source[position] == '/' && source[position+1] == '/') {
+        /* Comentario de línea: // */
+        if (source[position] == '/' && source[position + 1] == '/') {
             while (source[position] != '\n' && source[position] != '\0')
                 advance();
-            continue;  // Vuelve a comprobar
+            continue;
         }
-        // Saltar comentario de bloque: /* ... */
-        if (source[position] == '/' && source[position+1] == '*') {
-            advance(); // consume '/'
-            advance(); // consume '*'
-            while (!(source[position] == '*' && source[position+1] == '/') && source[position] != '\0') {
+        /* Comentario de bloque: /* ... *\/ */
+        if (source[position] == '/' && source[position + 1] == '*') {
+            advance(); // Consume '/'
+            advance(); // Consume '*'
+            while (!(source[position] == '*' && source[position + 1] == '/') && source[position] != '\0') {
                 if (source[position] == '\n') {
                     line++;
                     col = 0;
@@ -66,17 +105,25 @@ static void skipWhitespaceAndComments(void) {
                 advance();
             }
             if (source[position] != '\0') {
-                advance(); // consume '*'
-                advance(); // consume '/'
+                advance(); // Consume '*'
+                advance(); // Consume '/'
             }
-            continue; // Vuelve a comprobar
+            continue;
         }
         break;
     }
 }
 
+/**
+ * @brief Obtiene el siguiente token de la fuente.
+ *
+ * Analiza la entrada y retorna el siguiente token.
+ *
+ * @return Token Estructura Token con tipo, lexema, línea y columna.
+ */
 Token getNextToken(void) {
     skipWhitespaceAndComments();
+
     if (source[position] == '\0') {
         Token token = { TOKEN_EOF, "EOF", line, col };
         return token;
@@ -85,7 +132,7 @@ Token getNextToken(void) {
     char c = advance();
     Token token = { 0, "", line, col - 1 };
 
-    // Identificadores y palabras clave.
+    /* Manejo de identificadores y palabras clave. */
     if (isalpha(c) || c == '_') {
         int start = position - 1;
         while (isalnum(source[position]) || source[position] == '_')
@@ -110,14 +157,14 @@ Token getNextToken(void) {
         else if (strcmp(token.lexeme, "range") == 0) token.type = TOKEN_RANGE;
         else if (strcmp(token.lexeme, "int") == 0) {
             token.type = TOKEN_INT;
-            printf("Detected token: int as TOKEN_INT\n");
+            DBG_PRINT("Detected token: int as TOKEN_INT\n");
         }
         else if (strcmp(token.lexeme, "float") == 0) token.type = TOKEN_FLOAT;
         else token.type = TOKEN_IDENTIFIER;
         return token;
     }
 
-    // Números.
+    /* Manejo de números. */
     if (isdigit(c) || (c == '.' && isdigit(peek()))) {
         int start = position - 1;
         while (isdigit(source[position]) || source[position] == '.')
@@ -129,24 +176,24 @@ Token getNextToken(void) {
         return token;
     }
 
-    // Cadenas.
+    /* Manejo de cadenas. */
     if (c == '"') {
         int start = position;
         while (source[position] != '"' && source[position] != '\0')
             advance();
         if (source[position] == '\0') {
             fprintf(stderr, "Unterminated string at line %d, col %d\n", line, col);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         int length = position - start;
         strncpy(token.lexeme, source + start, length);
         token.lexeme[length] = '\0';
-        advance(); // consume la comilla de cierre
+        advance(); // Consume la comilla de cierre.
         token.type = TOKEN_STRING;
         return token;
     }
 
-    // Operadores y símbolos.
+    /* Manejo de operadores y símbolos. */
     switch (c) {
         case '=':
             if (peek() == '=') {
