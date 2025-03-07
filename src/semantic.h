@@ -3,13 +3,21 @@
 
 #include "ast.h"
 
+/* Tipos de datos semánticos */
+typedef enum {
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_STRING,
+    TYPE_CLASS,    // Para tipos definidos por el usuario (clases)
+    TYPE_UNKNOWN
+} DataType;
+
 /**
  * @brief Realiza el análisis semántico sobre el AST.
  *
- * Esta función recorre el árbol de sintaxis abstracta y verifica que las
- * construcciones sean coherentes desde el punto de vista semántico.
- * En esta versión básica se realiza un recorrido recursivo; se puede ampliar
- * para incluir verificación de tipos, alcance de variables y otras reglas semánticas.
+ * Recorre el árbol de sintaxis abstracta, verifica consistencia de tipos en 
+ * operaciones, asignaciones y declaraciones, y gestiona el alcance de las 
+ * variables usando una pila de tablas de símbolos.
  *
  * @param root Puntero a la raíz del AST.
  */

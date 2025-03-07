@@ -1,52 +1,110 @@
 .intel_syntax noprefix
 .data
 fmt: .asciz "Result: %ld\n"
-arr: .quad 0
-p: .quad 0
-doble: .quad 0
-resultado: .quad 0
-z: .quad 0
-y: .quad 20
-x: .quad 10
 .text
 .global main
 main:
-    mov rax, [z]
-    mov rsi, rax
-    lea rdi, [rip+fmt]
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    mov rax, [z]    ; cargar valor de variable
+    mov rsi, rax    ; prepara argumento para printf
+    lea rdi, [rip+fmt]    ; formato de impresión
     xor eax, eax
     call printf
-    lea rax, [rip+str_Resultado: ]
-    push rax
-    ; ERROR: Node type 4 not supported in codegen
-    pop rbx
-    add rax, rbx
-    mov rsi, rax
-    lea rdi, [rip+fmt]
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    lea rax, [rip+str_Resultado: ]    ; cargar literal de cadena
+    push rax          ; guardar operando izquierdo
+    ; ERROR: Nodo tipo 4 no soportado en generación de código
+    pop rbx           ; recuperar operando izquierdo
+    add rax, rbx    ; suma
+    mov rsi, rax    ; prepara argumento para printf
+    lea rdi, [rip+fmt]    ; formato de impresión
     xor eax, eax
     call printf
-    lea rax, [rip+str_Doble de 5: ]
-    push rax
-    ; ERROR: Node type 4 not supported in codegen
-    pop rbx
-    add rax, rbx
-    mov rsi, rax
-    lea rdi, [rip+fmt]
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 7 no soportado en generación de código
+    mov [doble], rax    ; asignación de variable
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    lea rax, [rip+str_Doble de 5: ]    ; cargar literal de cadena
+    push rax          ; guardar operando izquierdo
+    ; ERROR: Nodo tipo 4 no soportado en generación de código
+    pop rbx           ; recuperar operando izquierdo
+    add rax, rbx    ; suma
+    mov rsi, rax    ; prepara argumento para printf
+    lea rdi, [rip+fmt]    ; formato de impresión
     xor eax, eax
     call printf
-    ; ERROR: Node type 8 not supported in codegen
-    ; ERROR: Node type 9 not supported in codegen
-    ; ERROR: Node type 10 not supported in codegen
-    ; ERROR: Node type 11 not supported in codegen
-    lea rax, [rip+str_Suma numpy: ]
-    push rax
-    ; ERROR: Node type 4 not supported in codegen
-    pop rbx
-    add rax, rbx
-    mov rsi, rax
-    lea rdi, [rip+fmt]
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 8 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    lea rax, [rip+str_Distancia de punto: ]    ; cargar literal de cadena
+    push rax          ; guardar operando izquierdo
+    ; ERROR: Nodo tipo 4 no soportado en generación de código
+    pop rbx           ; recuperar operando izquierdo
+    add rax, rbx    ; suma
+    mov rsi, rax    ; prepara argumento para printf
+    lea rdi, [rip+fmt]    ; formato de impresión
     xor eax, eax
     call printf
-    mov rax, 60
-    xor rdi, rdi
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 9 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 10 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 11 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    ; ERROR: Nodo tipo 2 no soportado en generación de código
+    ; ---- Fin Sentencia ----
+
+    ; ---- Inicio Sentencia ----
+    lea rax, [rip+str_Suma de arreglo: ]    ; cargar literal de cadena
+    push rax          ; guardar operando izquierdo
+    ; ERROR: Nodo tipo 4 no soportado en generación de código
+    pop rbx           ; recuperar operando izquierdo
+    add rax, rbx    ; suma
+    mov rsi, rax    ; prepara argumento para printf
+    lea rdi, [rip+fmt]    ; formato de impresión
+    xor eax, eax
+    call printf
+    ; ---- Fin Sentencia ----
+
+    mov rax, 60    ; syscall: exit
+    xor rdi, rdi   ; status 0
     syscall

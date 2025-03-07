@@ -4,93 +4,111 @@
 #include "parser.h"
 #include "ast.h"
 #include "semantic.h"
+#include "optimize.h"    // Módulo de optimización del AST
 #include "codegen.h"
-#include "memory.h"  // Módulo de gestión de memoria
+#include "memory.h"      // Módulo de gestión de memoria
 
 /* Prototipos de funciones de prueba */
 void runLexerTest(const char *source);
+void runParserTest(const char *source, AstNode **astOut);
+void runOptimizeTest(AstNode **ast);
 void runSemanticTest(AstNode *ast);
 void runCodegenTest(AstNode *ast);
+void runMemoryStats(void);
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
-    /* Código de prueba con múltiples casos */
+    /* Código de prueba de ejemplo en Lyn usando la notación con ':' */
     const char *sourceCode =
+        "// Programa de prueba completo en Lyn\n"
         "main;\n"
-        "    // Variables y expresiones\n"
-        "    x = 10;\n"
-        "    y = 20;\n"
-        "    z = (x + y) * 2;\n"
-        "    print(z);\n"
         "\n"
-        "    // Funciones\n"
-        "    func suma(a int, b int) -> int;\n"
-        "        return a + b;\n"
+        "// Prueba de variables y expresiones\n"
+        "x: int = 10;\n"
+        "y: int = 20;\n"
+        "z: int = (x + y) * 2;\n"
+        "print(z);\n"
+        "\n"
+        "// Prueba de funciones\n"
+        "func suma(a: int, b: int) -> int;\n"
+        "    return a + b;\n"
+        "end;\n"
+        "resultado: int = suma(x, y);\n"
+        "print(\"Resultado: \" + resultado.to_str());\n"
+        "\n"
+        "// Prueba de función lambda\n"
+        "doble = (n: int) -> int => n * 2;\n"
+        "print(\"Doble de 5: \" + doble(5).to_str());\n"
+        "\n"
+        "// Prueba de clases y objetos\n"
+        "class Punto;\n"
+        "    x: float;\n"
+        "    y: float;\n"
+        "    func __init__(self: Punto, x: float, y: float);\n"
+        "        self.x = x;\n"
+        "        self.y = y;\n"
         "    end;\n"
-        "\n"
-        "    resultado = suma(x, y);\n"
-        "    print(\"Resultado: \" + resultado.to_str());\n"
-        "\n"
-        "    // Función lambda\n"
-        "    doble = (n int) -> int => n * 2;\n"
-        "    print(\"Doble de 5: \" + doble(5).to_str());\n"
-        "\n"
-        "    // Clases y objetos\n"
-        "    class Punto;\n"
-        "        x float;\n"
-        "        y float;\n"
-        "        func __init__(self, x float, y float);\n"
-        "            self.x = x;\n"
-        "            self.y = y;\n"
-        "        end;\n"
+        "    func distancia(self: Punto) -> float;\n"
+        "        return sqrt(self.x * self.x + self.y * self.y);\n"
         "    end;\n"
-        "    p = Punto(3.0, 4.0);\n"
+        "end;\n"
+        "p: Punto = Punto(3.0, 4.0);\n"
+        "print(\"Distancia de punto: \" + p.distancia().to_str());\n"
         "\n"
-        "    // Control de flujo\n"
-        "    if resultado > 25;\n"
-        "        print(\"Mayor que 25\");\n"
-        "    else;\n"
-        "        print(\"Menor o igual a 25\");\n"
-        "    end;\n"
+        "// Prueba de control de flujo\n"
+        "if resultado > 25;\n"
+        "    print(\"Resultado mayor a 25\");\n"
+        "else;\n"
+        "    print(\"Resultado menor o igual a 25\");\n"
+        "end;\n"
         "\n"
-        "    // Bucles\n"
-        "    for i in range(3);\n"
-        "        print(\"Iteración \" + i.to_str());\n"
-        "    end;\n"
+        "// Prueba de bucle\n"
+        "for i in range(3);\n"
+        "    print(\"Iteración \" + i.to_str());\n"
+        "end;\n"
         "\n"
-        "    // Importaciones\n"
-        "    import python \"numpy\";\n"
-        "    arr = [1, 2, 3, 4];\n"
-        "    print(\"Suma numpy: \" + suma_numpy(arr).to_str());\n"
+        "// Prueba de importación\n"
+        "import python \"numpy\";\n"
+        "arr: [int] = [1, 2, 3, 4];\n"
+        "print(\"Suma de arreglo: \" + suma_numpy(arr).to_str());\n"
+        "\n"
         "end;\n";
+
+    printf("=== Ejecución de pruebas de Lync Compiler ===\n\n");
 
     /* 1️⃣ Test del Lexer */
     runLexerTest(sourceCode);
 
     /* 2️⃣ Test del Parser */
-    lexerInit(sourceCode);  // Reiniciar el lexer para parsing
-    AstNode *ast = parseProgram();
+    AstNode *ast = NULL;
+    runParserTest(sourceCode, &ast);
     if (!ast) {
-        fprintf(stderr, "Parsing failed.\n");
-        return 1;
+        fprintf(stderr, "Error: Parsing failed.\n");
+        exit(1);
     }
-    printf("Parsing completed successfully.\n");
+    printf("Parser: AST generado exitosamente.\n\n");
 
-    /* 3️⃣ Test de Análisis Semántico */
+    /* 3️⃣ Optimización del AST */
+    runOptimizeTest(&ast);
+    printf("Optimizer: AST optimizado exitosamente.\n\n");
+
+    /* 4️⃣ Test de Análisis Semántico */
     runSemanticTest(ast);
+    printf("Semantic Analysis: Análisis semántico completado.\n\n");
 
-    /* 4️⃣ Test de Generación de Código */
+    /* 5️⃣ Test de Generación de Código */
     runCodegenTest(ast);
+    printf("Code Generation: Código ensamblador generado.\n\n");
 
-    /* Liberar memoria: freeAst utiliza internamente memory_pool_free para retornar los nodos al pool */
+    /* 6️⃣ (Opcional) Mostrar estadísticas de memoria si DEBUG_MEMORY está definido */
+    runMemoryStats();
+
+    /* Liberar el AST */
     freeAst(ast);
 
-    /* Opcional: si deseas volcar estadísticas del pool o destruirlo, puedes hacerlo aquí.
-       Por ejemplo, si hubieras expuesto una función destroyAstPool() en el módulo AST,
-       podrías llamarla antes de finalizar. */
-
+    printf("Todas las pruebas se ejecutaron exitosamente.\n");
     return 0;
 }
 
@@ -98,7 +116,6 @@ int main(int argc, char **argv) {
 /* ⚡ Funciones de prueba */
 /* ===================== */
 
-/* Prueba del Lexer */
 void runLexerTest(const char *source) {
     printf("Running Lexer Test...\n");
     lexerInit(source);
@@ -111,24 +128,47 @@ void runLexerTest(const char *source) {
     printf("Lexer Test Passed!\n\n");
 }
 
-/* Prueba del Análisis Semántico */
+void runParserTest(const char *source, AstNode **astOut) {
+    printf("Running Parser Test...\n");
+    lexerInit(source);  // Reiniciar el lexer
+    *astOut = parseProgram();
+    if (*astOut) {
+        printf("Parser Test Passed!\n\n");
+    } else {
+        printf("Parser Test Failed!\n\n");
+    }
+}
+
+void runOptimizeTest(AstNode **ast) {
+    printf("Running AST Optimization Test...\n");
+    *ast = optimizeAST(*ast);
+    printf("AST Optimization Test Passed!\n\n");
+}
+
 void runSemanticTest(AstNode *ast) {
     printf("Running Semantic Analysis Test...\n");
     analyzeSemantics(ast);
-    printf("Semantic Analysis Passed!\n\n");
+    printf("Semantic Analysis Test Passed!\n\n");
 }
 
-/* Prueba de Generación de Código */
 void runCodegenTest(AstNode *ast) {
     printf("Running Code Generation Test...\n");
     generateCode(ast, "output.s");
 
-    /* Verificar que output.s fue generado correctamente */
     FILE *file = fopen("output.s", "r");
     if (file) {
-        printf("Code generation completed successfully. Assembly written to output.s\n");
+        printf("Code Generation Test Passed! Assembly written to output.s\n");
         fclose(file);
     } else {
-        fprintf(stderr, "Error: output.s not found.\n");
+        fprintf(stderr, "Code Generation Test Failed: output.s not found.\n");
     }
+}
+
+void runMemoryStats(void) {
+    #ifdef DEBUG_MEMORY
+    printf("\n--- Memory Pool Statistics ---\n");
+    printf("Global Allocations: %zu\n", memory_get_global_alloc_count());
+    printf("Global Frees: %zu\n", memory_get_global_free_count());
+    printf("------------------------------\n\n");
+    #endif
 }

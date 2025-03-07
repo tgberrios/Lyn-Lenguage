@@ -113,6 +113,24 @@ size_t memory_pool_get_total_frees(MemoryPool *pool);
  */
 void memory_pool_dumpStats(MemoryPool *pool);
 
+/* ============================
+   Funciones para Tracking Global de Memoria
+   ============================ */
+
+/**
+ * @brief Retorna el número total de asignaciones globales realizadas.
+ *
+ * @return size_t Número de asignaciones globales.
+ */
+size_t memory_get_global_alloc_count(void);
+
+/**
+ * @brief Retorna el número total de liberaciones globales realizadas.
+ *
+ * @return size_t Número de liberaciones globales.
+ */
+size_t memory_get_global_free_count(void);
+
 #ifdef __cplusplus
 }
 #endif

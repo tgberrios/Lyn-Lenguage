@@ -47,11 +47,12 @@ struct AstNode {
         } program;
         struct {
             char name[256];
-            AstNode *value;
+            AstNode *initializer;  // Se usa "initializer" en asignaciones.
         } varAssign;
         struct {
             char name[256];
             char type[64];
+            AstNode *initializer;  // Campo opcional para inicialización.
         } varDecl;
         struct {
             char name[256];

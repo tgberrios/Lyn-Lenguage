@@ -155,13 +155,25 @@ size_t memory_pool_get_total_frees(MemoryPool *pool) {
 void memory_pool_dumpStats(MemoryPool *pool) {
     if (!pool) return;
     printf("Memory Pool Stats:\n");
-    printf("  Block size  : %zu\n", pool->blockSize);
-    printf("  Pool size   : %zu\n", pool->poolSize);
-    printf("  Allocs      : %zu\n", pool->totalAllocs);
-    printf("  Frees       : %zu\n", pool->totalFrees);
+    printf("  Block size   : %zu\n", pool->blockSize);
+    printf("  Pool size    : %zu\n", pool->poolSize);
+    printf("  Allocs       : %zu\n", pool->totalAllocs);
+    printf("  Frees        : %zu\n", pool->totalFrees);
     size_t inUse = (pool->totalAllocs > pool->totalFrees)
                     ? (pool->totalAllocs - pool->totalFrees)
                     : 0;
     printf("  Blocks in use: %zu\n", inUse);
     printf("  Pool pointer : %p\n", (void*)pool);
+}
+
+/* ============================
+   Funciones para Tracking Global de Memoria
+   ============================ */
+
+size_t memory_get_global_alloc_count(void) {
+    return globalAllocCount;
+}
+
+size_t memory_get_global_free_count(void) {
+    return globalFreeCount;
 }

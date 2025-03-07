@@ -210,6 +210,11 @@ Token getNextToken(void) {
                 token.lexeme[1] = '\0';
             }
             break;
+        case ':':   // <-- NUEVO
+            token.type = TOKEN_COLON;
+            token.lexeme[0] = ':';
+            token.lexeme[1] = '\0';
+            break;
         case '+':
             token.type = TOKEN_PLUS;
             token.lexeme[0] = '+';

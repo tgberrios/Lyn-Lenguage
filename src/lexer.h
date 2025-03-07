@@ -45,7 +45,8 @@ typedef enum {
     TOKEN_NEQ,             // 37: !=
     TOKEN_UNKNOWN,         // 38: Caracteres no reconocidos
     TOKEN_LBRACKET,        // 39: [
-    TOKEN_RBRACKET         // 40: ]
+    TOKEN_RBRACKET,         // 40: ]
+    TOKEN_COLON
 } TokenType;
 
 /**
