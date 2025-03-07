@@ -211,3 +211,16 @@ y = 20
 end
 Conclusión final:
 Este documento reúne el roadmap completo de Lyn, desde la construcción del compilador (Fase 1 ya completada) hasta la interoperabilidad, optimización, gestión de memoria y herramientas del ecosistema. Con estas bases, Lyn está listo para avanzar y evolucionar hacia un lenguaje de alto rendimiento y versátil en múltiples dominios.
+
+make clean && \
+make CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC" && ./compiler && \
+make clean && \
+make CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC" && ./compiler && \
+make clean && \
+make TARGET=arm CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC" && ./compiler && \
+make clean && \
+make TARGET=riscv CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC" && ./compiler && \
+make clean && \
+make TARGET=wasm CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC"
+
+make clean && make CFLAGS="-Wall -Wextra -std=c11 -I./src -DDEBUG_MEMORY -DUSE_GC" && ./compiler
