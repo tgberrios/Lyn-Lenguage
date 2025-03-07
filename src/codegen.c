@@ -1,4 +1,3 @@
-/* codegen.c */
 #include "codegen.h"
 #include "ast.h"
 #include "memory.h"
@@ -6,7 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Tabla de símbolos para el backend (usada para variables globales) */
+/* ==========================================================
+   Backend Symbol Table (variables globales)
+   ========================================================== */
+
 typedef struct Symbol {
     char name[256];
     struct Symbol *next;
@@ -14,7 +16,7 @@ typedef struct Symbol {
 
 static Symbol *symbolTable = NULL;
 
-/* Funciones para la tabla de símbolos */
+/* Agrega símbolo global */
 static void addSymbol(const char *name) {
     Symbol *sym = (Symbol *)memory_alloc(sizeof(Symbol));
     strncpy(sym->name, name, sizeof(sym->name) - 1);
@@ -23,6 +25,7 @@ static void addSymbol(const char *name) {
     symbolTable = sym;
 }
 
+/* Verifica si la variable global existe */
 static int isSymbolInTable(const char *name) {
     Symbol *sym = symbolTable;
     while (sym) {
@@ -33,6 +36,7 @@ static int isSymbolInTable(const char *name) {
     return 0;
 }
 
+/* Libera la tabla de símbolos al terminar la compilación */
 static void freeSymbolTable() {
     Symbol *sym = symbolTable;
     while (sym) {
@@ -43,190 +47,405 @@ static void freeSymbolTable() {
     symbolTable = NULL;
 }
 
-/* -------------------------------------------------------------------------- */
-/*         Generación de Código con Optimización de Instrucciones             */
-/* -------------------------------------------------------------------------- */
+/* ==========================================================
+   Utilidades para etiquetas en ensamblador
+   ========================================================== */
 
 /**
- * @brief Genera código ensamblador para una expresión.
- *
- * Se aplican optimizaciones como el uso de instrucciones inmediatas cuando uno de los
- * operandos es un literal numérico. Además, se añaden comentarios de depuración.
- *
- * @param expr Puntero al nodo AST de la expresión.
- * @param fp Archivo donde se escribe el ensamblador.
+ * Genera un label único para if/for/bloques anidados.
+ * Ejemplo: ".IF_0", ".END_0", etc.
  */
+static int labelCount = 0;
+static void getNewLabel(char *buffer, const char *prefix) {
+    sprintf(buffer, ".%s_%d", prefix, labelCount++);
+}
+
+/* ==========================================================
+   Prototipos privados
+   ========================================================== */
+static void generateExpression(AstNode *expr, FILE *fp);
+static void generateStatement(AstNode *stmt, FILE *fp);
+
+/* ==========================================================
+   generateExpression
+   Genera ASM que deja el resultado en RAX
+   ========================================================== */
 static void generateExpression(AstNode *expr, FILE *fp) {
-    switch(expr->type) {
-        case AST_NUMBER_LITERAL:
-            /* Cargar un literal numérico en rax */
-            fprintf(fp, "    mov rax, %f    ; cargar literal numérico\n", expr->numberLiteral.value);
-            break;
-        case AST_STRING_LITERAL:
-            /* Cargar la dirección de una cadena literal */
-            fprintf(fp, "    lea rax, [rip+str_%s]    ; cargar literal de cadena\n", expr->stringLiteral.value);
-            break;
-        case AST_IDENTIFIER:
-            /* Cargar el valor de una variable (asumimos que su dirección es conocida) */
-            fprintf(fp, "    mov rax, [%s]    ; cargar valor de variable\n", expr->identifier.name);
-            break;
-        case AST_BINARY_OP: {
-            /* Optimización de operaciones inmediatas:
-               Si el operando derecho es un literal, se utiliza una instrucción inmediata. */
-            if (expr->binaryOp.right->type == AST_NUMBER_LITERAL) {
-                generateExpression(expr->binaryOp.left, fp);  // Resultado en rax
-                double imm = expr->binaryOp.right->numberLiteral.value;
-                switch (expr->binaryOp.op) {
-                    case '+':
-                        fprintf(fp, "    add rax, %f    ; suma inmediata\n", imm);
-                        break;
-                    case '-':
-                        fprintf(fp, "    sub rax, %f    ; resta inmediata\n", imm);
-                        break;
-                    case '*':
-                        fprintf(fp, "    imul rax, %f   ; multiplicación inmediata\n", imm);
-                        break;
-                    case '/':
-                        /* Para la división, cargamos el divisor en rcx y usamos idiv */
-                        fprintf(fp, "    mov rcx, %f    ; divisor inmediato\n", imm);
-                        fprintf(fp, "    xor rdx, rdx   ; limpiar rdx\n");
-                        fprintf(fp, "    idiv rcx       ; división\n");
-                        break;
-                    default:
-                        fprintf(fp, "    ; ERROR: Operador '%c' no soportado\n", expr->binaryOp.op);
-                        break;
-                }
-            } else {
-                /* Caso general: ambos operandos son expresiones complejas.
-                   Se usa el mecanismo push/pop para salvar el valor de la izquierda. */
-                generateExpression(expr->binaryOp.left, fp);
-                fprintf(fp, "    push rax          ; guardar operando izquierdo\n");
-                generateExpression(expr->binaryOp.right, fp);
-                fprintf(fp, "    pop rbx           ; recuperar operando izquierdo\n");
-                switch (expr->binaryOp.op) {
-                    case '+':
-                        fprintf(fp, "    add rax, rbx    ; suma\n");
-                        break;
-                    case '-':
-                        fprintf(fp, "    sub rbx, rax    ; resta\n");
-                        fprintf(fp, "    mov rax, rbx\n");
-                        break;
-                    case '*':
-                        fprintf(fp, "    imul rax, rbx   ; multiplicación\n");
-                        break;
-                    case '/':
-                        fprintf(fp, "    mov rcx, rax    ; preparar divisor\n");
-                        fprintf(fp, "    pop rbx         ; recuperar operando izquierdo\n");
-                        fprintf(fp, "    mov rax, rbx    ; mover operando a rax\n");
-                        fprintf(fp, "    xor rdx, rdx    ; limpiar rdx\n");
-                        fprintf(fp, "    idiv rcx        ; división\n");
-                        break;
-                    default:
-                        fprintf(fp, "    ; ERROR: Operador '%c' no soportado\n", expr->binaryOp.op);
-                        break;
-                }
-            }
-            break;
+    if (!expr) {
+        fprintf(fp, "    ; (expresión nula)\n");
+        return;
+    }
+
+    switch (expr->type) {
+
+    case AST_NUMBER_LITERAL: {
+        /* Asumimos literales como enteros. 
+           Para floats reales, debería manejarse en registros xmm. */
+        long val = (long)expr->numberLiteral.value;
+        fprintf(fp, "    mov rax, %ld    ; cargar literal numérico\n", val);
+        break;
+    }
+
+    case AST_STRING_LITERAL: {
+        /* Tu parser o sistema podría crear .data con "str_<literal>:".
+           Aquí suponemos que .data lo define. */
+        fprintf(fp, "    lea rax, [rip+str_%s]    ; cargar literal string\n",
+                expr->stringLiteral.value);
+        break;
+    }
+
+    case AST_IDENTIFIER: {
+        /* Cargar variable global en RAX */
+        fprintf(fp, "    mov rax, [%s]    ; cargar variable global\n",
+                expr->identifier.name);
+        break;
+    }
+
+    case AST_BINARY_OP: {
+        /* Manejo aritmético y ahora también comparaciones como '>' */
+        AstNode *L = expr->binaryOp.left;
+        AstNode *R = expr->binaryOp.right;
+        char op = expr->binaryOp.op;
+
+        // Genera L en RAX
+        generateExpression(L, fp);
+        fprintf(fp, "    push rax          ; stack = L\n");
+
+        // Genera R en RAX
+        generateExpression(R, fp);
+        fprintf(fp, "    pop rbx           ; rbx = L, rax = R\n");
+
+        switch (op) {
+            case '+':
+                fprintf(fp, "    add rax, rbx    ; rax = L + R\n");
+                break;
+            case '-':
+                fprintf(fp, "    sub rbx, rax    ; rbx = L - R\n");
+                fprintf(fp, "    mov rax, rbx\n");
+                break;
+            case '*':
+                fprintf(fp, "    imul rax, rbx   ; rax = L * R\n");
+                break;
+            case '/':
+                /* Div entero: rax=dividendo, rcx=divisor, rdx=0 */
+                fprintf(fp, "    mov rcx, rax    ; divisor en rcx (R)\n");
+                fprintf(fp, "    mov rax, rbx    ; dividendo en rax (L)\n");
+                fprintf(fp, "    xor rdx, rdx\n");
+                fprintf(fp, "    idiv rcx        ; rax = L / R\n");
+                break;
+
+            // NUEVO: Comparaciones
+            case '>':
+                // Queremos rax = (L > R) ? 1 : 0
+                // Para ello: rbx = L, rax = R
+                // 1) cmp rbx, rax => L ? R
+                // 2) setg al => al=1 si L>R; sino 0
+                // 3) zero-extend rax
+                fprintf(fp, "    cmp rbx, rax    ; compara L con R\n");
+                fprintf(fp, "    setg al         ; al=1 si L>R, 0 si no\n");
+                fprintf(fp, "    movzb rax, al   ; rax = 0/1\n");
+                break;
+
+            // Añade más si quieres >=, <, <=, ==
+            default:
+                fprintf(fp, "    ; ERROR: Operador '%c' no soportado\n", op);
+                break;
         }
-        default:
-            fprintf(fp, "    ; ERROR: Nodo tipo %d no soportado en generación de código\n", expr->type);
-            break;
+        break;
+    }
+
+    case AST_FUNC_CALL: {
+        /* Llamada a función:
+           - Generar args, push en orden
+           - call <nombre>
+           - RAX = retorno */
+        for (int i = 0; i < expr->funcCall.argCount; i++) {
+            generateExpression(expr->funcCall.arguments[i], fp);
+            fprintf(fp, "    push rax    ; argumento %d\n", i);
+        }
+        fprintf(fp, "    call %s\n", expr->funcCall.name);
+        break;
+    }
+
+    case AST_METHOD_CALL: {
+        // object.method(...)
+        generateExpression(expr->methodCall.object, fp);
+        fprintf(fp, "    push rax    ; push 'this'\n");
+        for (int i = 0; i < expr->methodCall.argCount; i++) {
+            generateExpression(expr->methodCall.arguments[i], fp);
+            fprintf(fp, "    push rax    ; arg %d\n", i);
+        }
+        fprintf(fp, "    call %s\n", expr->methodCall.method);
+        break;
+    }
+
+    case AST_MEMBER_ACCESS: {
+        /* Acceso a object.member => En un compilador real, 
+           se calcula la dirección con offsets. Aquí es un placeholder. */
+        fprintf(fp, "    ; (pendiente) Acceso a miembro: %s\n",
+                expr->memberAccess.member);
+        break;
+    }
+
+    // NUEVO: Manejar AST_LAMBDA si llegara como *expresión*
+    case AST_LAMBDA: {
+        fprintf(fp, "    ; (lambda expresion) => STUB, no implementado\n");
+        // Podrías generar un label anónimo y devolver su dirección
+        // ...
+        break;
+    }
+
+    // NUEVO: Manejar AST_VAR_DECL si aparece en expr context
+    case AST_VAR_DECL: {
+        // Normalmente no generas nada como expresión, 
+        // porque "varDecl" es declaración. Dejamos un stub:
+        fprintf(fp, "    ; (declaración varDecl) => sin acción en codegen expr\n");
+        break;
+    }
+
+    case AST_ARRAY_LITERAL: {
+        fprintf(fp, "    ; (array literal) => no implementado (stub)\n");
+        break;
+    }
+
+    case AST_CLASS_DEF: {
+        // Si aparece como expresión, lo ignoramos
+        fprintf(fp, "    ; (class def en expr) => sin acción\n");
+        break;
+    }
+
+    case AST_IMPORT: {
+        fprintf(fp, "    ; (import en expr) => no-op\n");
+        break;
+    }
+
+    default:
+        fprintf(fp, "    ; ERROR: Expresión nodo tipo %d no soportado\n",
+                expr->type);
+        break;
     }
 }
 
-/**
- * @brief Genera código para una sentencia, añadiendo comentarios de depuración.
- *
- * Se agregan comentarios que delimitan el inicio y fin de cada sentencia.
- *
- * @param node Nodo AST de la sentencia.
- * @param fp Archivo de salida para el ensamblador.
- */
-static void generateStatement(AstNode *node, FILE *fp) {
+/* ==========================================================
+   generateStatement
+   Genera ASM para sentencias: if, for, asignaciones, etc.
+   ========================================================== */
+static void generateStatement(AstNode *stmt, FILE *fp) {
     fprintf(fp, "    ; ---- Inicio Sentencia ----\n");
-    switch (node->type) {
-        case AST_VAR_ASSIGN:
-            /* Antes de generar el código, registrar la variable en la tabla de símbolos global */
-            if (!isSymbolInTable(node->varAssign.name)) {
-                addSymbol(node->varAssign.name);
-            }
-            /* Usar el campo 'initializer' en lugar de 'value' */
-            generateExpression(node->varAssign.initializer, fp);
-            fprintf(fp, "    mov [%s], rax    ; asignación de variable\n", node->varAssign.name);
-            break;
-        case AST_PRINT_STMT:
-            generateExpression(node->printStmt.expr, fp);
-            fprintf(fp, "    mov rsi, rax    ; prepara argumento para printf\n");
-            fprintf(fp, "    lea rdi, [rip+fmt]    ; formato de impresión\n");
-            fprintf(fp, "    xor eax, eax\n");
-            fprintf(fp, "    call printf\n");
-            break;
-        case AST_FUNC_DEF:
-            fprintf(fp, "\n.global %s\n%s:\n", node->funcDef.name, node->funcDef.name);
-            for (int i = 0; i < node->funcDef.bodyCount; i++) {
-                generateStatement(node->funcDef.body[i], fp);
-            }
-            fprintf(fp, "    ret    ; fin de función\n");
-            break;
-        case AST_RETURN_STMT:
-            generateExpression(node->returnStmt.expr, fp);
-            fprintf(fp, "    ret    ; return\n");
-            break;
-        default:
-            generateExpression(node, fp);
-            break;
+
+    if (!stmt) {
+        fprintf(fp, "    ; (sentencia nula)\n");
+        fprintf(fp, "    ; ---- Fin Sentencia ----\n\n");
+        return;
     }
+
+    switch (stmt->type) {
+
+    case AST_VAR_ASSIGN: {
+        /* Registrar variable si no está */
+        if (!isSymbolInTable(stmt->varAssign.name)) {
+            addSymbol(stmt->varAssign.name);
+        }
+        /* Generar expresión y asignarla */
+        generateExpression(stmt->varAssign.initializer, fp);
+        fprintf(fp, "    mov [%s], rax    ; asignación\n", 
+                stmt->varAssign.name);
+        break;
+    }
+
+    // NUEVO: Soportar declaración de variable (AST_VAR_DECL)
+    case AST_VAR_DECL: {
+        // Si trae un initializer, asignarlo
+        if (!isSymbolInTable(stmt->varDecl.name)) {
+            addSymbol(stmt->varDecl.name);
+        }
+        if (stmt->varDecl.initializer) {
+            generateExpression(stmt->varDecl.initializer, fp);
+            fprintf(fp, "    mov [%s], rax ; inicializar varDecl\n",
+                    stmt->varDecl.name);
+        } else {
+            // Sin init => se deja en 0
+            fprintf(fp, "    ; varDecl '%s' sin init => nada\n",
+                    stmt->varDecl.name);
+        }
+        break;
+    }
+
+    case AST_PRINT_STMT: {
+        generateExpression(stmt->printStmt.expr, fp);
+        fprintf(fp, "    mov rsi, rax    ; param arg\n");
+        fprintf(fp, "    lea rdi, [rip+fmt] ; \"Result: %%ld\\n\"\n");
+        fprintf(fp, "    xor eax, eax\n");
+        fprintf(fp, "    call printf\n");
+        break;
+    }
+
+    case AST_FUNC_DEF: {
+        fprintf(fp, "\n.global %s\n", stmt->funcDef.name);
+        fprintf(fp, "%s:\n", stmt->funcDef.name);
+        for (int i = 0; i < stmt->funcDef.bodyCount; i++) {
+            generateStatement(stmt->funcDef.body[i], fp);
+        }
+        fprintf(fp, "    ret    ; fin de funcion %s\n", stmt->funcDef.name);
+        break;
+    }
+
+    case AST_RETURN_STMT: {
+        generateExpression(stmt->returnStmt.expr, fp);
+        fprintf(fp, "    ret\n");
+        break;
+    }
+
+    case AST_IF_STMT: {
+        char labelElse[32], labelEnd[32];
+        getNewLabel(labelElse, "ELSE");
+        getNewLabel(labelEnd, "ENDIF");
+
+        generateExpression(stmt->ifStmt.condition, fp);
+        fprintf(fp, "    cmp rax, 0\n");
+        fprintf(fp, "    je %s\n", labelElse);
+
+        for (int i = 0; i < stmt->ifStmt.thenCount; i++) {
+            generateStatement(stmt->ifStmt.thenBranch[i], fp);
+        }
+        fprintf(fp, "    jmp %s\n", labelEnd);
+
+        fprintf(fp, "%s:\n", labelElse);
+        for (int i = 0; i < stmt->ifStmt.elseCount; i++) {
+            generateStatement(stmt->ifStmt.elseBranch[i], fp);
+        }
+
+        fprintf(fp, "%s:\n", labelEnd);
+        break;
+    }
+
+    case AST_FOR_STMT: {
+        if (!isSymbolInTable(stmt->forStmt.iterator)) {
+            addSymbol(stmt->forStmt.iterator);
+        }
+        char labelLoop[32], labelEnd[32];
+        getNewLabel(labelLoop, "LOOP");
+        getNewLabel(labelEnd, "LOOPEND");
+
+        generateExpression(stmt->forStmt.rangeStart, fp);
+        fprintf(fp, "    mov [%s], rax\n", stmt->forStmt.iterator);
+
+        fprintf(fp, "%s:\n", labelLoop);
+        generateExpression(stmt->forStmt.rangeEnd, fp);
+        fprintf(fp, "    mov rbx, rax    ; rbx = end\n");
+        fprintf(fp, "    mov rax, [%s]   ; rax = i\n", stmt->forStmt.iterator);
+        fprintf(fp, "    cmp rax, rbx\n");
+        fprintf(fp, "    jge %s\n", labelEnd);
+
+        for (int i = 0; i < stmt->forStmt.bodyCount; i++) {
+            generateStatement(stmt->forStmt.body[i], fp);
+        }
+
+        fprintf(fp, "    mov rax, [%s]\n", stmt->forStmt.iterator);
+        fprintf(fp, "    add rax, 1\n");
+        fprintf(fp, "    mov [%s], rax\n", stmt->forStmt.iterator);
+        fprintf(fp, "    jmp %s\n", labelLoop);
+
+        fprintf(fp, "%s:\n", labelEnd);
+        break;
+    }
+
+    case AST_IMPORT: {
+        fprintf(fp, "    ; (import %s %s) => sin efecto real\n",
+                stmt->importStmt.moduleType,
+                stmt->importStmt.moduleName);
+        break;
+    }
+
+    case AST_CLASS_DEF: {
+        fprintf(fp, "    ; (class %s) => pendiente de implementación real\n",
+                stmt->classDef.name);
+        break;
+    }
+
+    case AST_LAMBDA: {
+        fprintf(fp, "    ; (lambda) => pendiente de implementación real\n");
+        break;
+    }
+
+    case AST_ARRAY_LITERAL: {
+        fprintf(fp, "    ; (array literal) => pendiente de implementación real\n");
+        break;
+    }
+
+    // Si no coincide con nada, podría ser una "expresión suelta"
+    default:
+        generateExpression(stmt, fp);
+        break;
+    }
+
     fprintf(fp, "    ; ---- Fin Sentencia ----\n\n");
 }
 
-/**
- * @brief Genera el código ensamblador final a partir del AST.
- *
- * Recorre el AST, construye la tabla de símbolos global (para variables globales)
- * y genera las secciones de datos y texto del ensamblador. También incluye comentarios
- * para facilitar la depuración.
- *
- * @param root Puntero al nodo raíz del AST.
- * @param filename Nombre del archivo de salida.
- */
+/* ==========================================================
+   generateCode
+   Punto de entrada principal para generar el .s
+   ========================================================== */
 void generateCode(AstNode *root, const char *filename) {
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        fprintf(stderr, "Error al abrir el archivo para generación de código.\n");
+        fprintf(stderr, "Error al abrir archivo de salida.\n");
         exit(1);
     }
 
-    /* Construir la tabla de símbolos global revisando asignaciones */
-    for (int i = 0; i < root->program.statementCount; i++) {
-        AstNode *stmt = root->program.statements[i];
-        if (stmt->type == AST_VAR_ASSIGN) {
-            if (!isSymbolInTable(stmt->varAssign.name))
-                addSymbol(stmt->varAssign.name);
+    /* Si la raíz es un AST_PROGRAM, revisa variables globales */
+    if (root->type == AST_PROGRAM) {
+        for (int i = 0; i < root->program.statementCount; i++) {
+            AstNode *st = root->program.statements[i];
+            if (st->type == AST_VAR_ASSIGN) {
+                if (!isSymbolInTable(st->varAssign.name)) {
+                    addSymbol(st->varAssign.name);
+                }
+            }
+            // NUEVO: Si hay varDecl como global, también se registra
+            else if (st->type == AST_VAR_DECL) {
+                if (!isSymbolInTable(st->varDecl.name)) {
+                    addSymbol(st->varDecl.name);
+                }
+            }
         }
     }
 
-    /* Sección de datos */
+    /* Sección .data */
     fprintf(fp, ".intel_syntax noprefix\n");
     fprintf(fp, ".data\n");
-    fprintf(fp, "fmt: .asciz \"Result: %%ld\\n\"\n");
-    /* Aquí se podrían añadir otras variables globales o literales */
+    fprintf(fp, "fmt: .asciz \"Result: %%ld\\n\"\n\n");
 
-    /* Sección de texto */
-    fprintf(fp, ".text\n.global main\n");
-    fprintf(fp, "main:\n");
-
-    /* Generar código para cada sentencia (excepto definiciones de funciones que se
-       generan de forma separada) */
-    for (int i = 0; i < root->program.statementCount; i++) {
-        AstNode *stmt = root->program.statements[i];
-        if (stmt->type != AST_FUNC_DEF)
-            generateStatement(stmt, fp);
+    // Generar espacios en .data para cada variable global
+    Symbol *sym = symbolTable;
+    while (sym) {
+        fprintf(fp, "%s: .quad 0\n", sym->name);
+        sym = sym->next;
     }
 
-    /* Código para salir del programa */
-    fprintf(fp, "    mov rax, 60    ; syscall: exit\n");
-    fprintf(fp, "    xor rdi, rdi   ; status 0\n");
-    fprintf(fp, "    syscall\n");
+    /* Sección .text */
+    fprintf(fp, "\n.text\n.global main\n");
+
+    if (root->type == AST_PROGRAM) {
+        fprintf(fp, "main:\n");
+        for (int i = 0; i < root->program.statementCount; i++) {
+            generateStatement(root->program.statementCount > 0
+                                ? root->program.statements[i]
+                                : NULL,
+                              fp);
+        }
+        /* exit syscall */
+        fprintf(fp, "    mov rax, 60    ; exit\n");
+        fprintf(fp, "    xor rdi, rdi   ; status=0\n");
+        fprintf(fp, "    syscall\n");
+    } else {
+        /* main "implícito" */
+        fprintf(fp, "main:\n");
+        generateStatement(root, fp);
+        fprintf(fp, "    mov rax, 60\n");
+        fprintf(fp, "    xor rdi, rdi\n");
+        fprintf(fp, "    syscall\n");
+    }
 
     fclose(fp);
     freeSymbolTable();
