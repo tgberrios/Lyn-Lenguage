@@ -1,14 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>     // Para strcmp
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
 #include "semantic.h"
-#include "optimize.h"    // Módulo de optimización del AST
+#include "optimize.h"
 #include "codegen.h"
-#include "memory.h"      // Módulo de gestión de memoria
+#include "memory.h"
+#include "arch.h"  // Define Architecture, setCurrentBackend(), etc.
 
-/* Prototipos de funciones de prueba */
+//
+// Prototipos de funciones de prueba
+//
 void runLexerTest(const char *source);
 void runParserTest(const char *source, AstNode **astOut);
 void runOptimizeTest(AstNode **ast);
@@ -16,11 +20,36 @@ void runSemanticTest(AstNode *ast);
 void runCodegenTest(AstNode *ast);
 void runMemoryStats(void);
 
-int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+// Prototipo para testear todos los backends
+void runAllBackendTests(const char *source);
 
-    /* Código de prueba de ejemplo en Lyn usando la notación con ':' */
+int main(int argc, char **argv) {
+    printf("=== Ejecución de pruebas de Lync Compiler ===\n\n");
+
+    /* 1) Detectar argumentos --target=arm|riscv|wasm|x86 */
+    Architecture arch = ARCH_X86_64;  /* Por defecto: x86_64 */
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--target=", 9) == 0) {
+            const char *targetName = argv[i] + 9;
+            if (strcmp(targetName, "arm") == 0) {
+                arch = ARCH_ARM32;
+            }
+            else if (strcmp(targetName, "riscv") == 0) {
+                arch = ARCH_RISCV64;
+            }
+            else if (strcmp(targetName, "wasm") == 0) {
+                arch = ARCH_WASM;
+            }
+            else {
+                printf("Aviso: objetivo '%s' no reconocido; usando x86_64.\n", targetName);
+                arch = ARCH_X86_64;
+            }
+        }
+    }
+    /* Se configura el backend seleccionado (la salida se puede redirigir a un archivo si se desea) */
+    setCurrentBackend(arch, stdout);
+
+    /* 2) Código de prueba en Lyn */
     const char *sourceCode =
         "// Programa de prueba completo en Lyn\n"
         "main;\n"
@@ -76,12 +105,9 @@ int main(int argc, char **argv) {
         "\n"
         "end;\n";
 
-    printf("=== Ejecución de pruebas de Lync Compiler ===\n\n");
-
-    /* 1️⃣ Test del Lexer */
+    /* 3) Ejecutar las pruebas para el target seleccionado */
     runLexerTest(sourceCode);
 
-    /* 2️⃣ Test del Parser */
     AstNode *ast = NULL;
     runParserTest(sourceCode, &ast);
     if (!ast) {
@@ -90,30 +116,30 @@ int main(int argc, char **argv) {
     }
     printf("Parser: AST generado exitosamente.\n\n");
 
-    /* 3️⃣ Optimización del AST */
     runOptimizeTest(&ast);
     printf("Optimizer: AST optimizado exitosamente.\n\n");
 
-    /* 4️⃣ Test de Análisis Semántico */
     runSemanticTest(ast);
     printf("Semantic Analysis: Análisis semántico completado.\n\n");
 
-    /* 5️⃣ Test de Generación de Código */
     runCodegenTest(ast);
     printf("Code Generation: Código ensamblador generado.\n\n");
 
-    /* 6️⃣ (Opcional) Mostrar estadísticas de memoria si DEBUG_MEMORY está definido */
     runMemoryStats();
 
-    /* Liberar el AST */
     freeAst(ast);
+
+    printf("Prueba con target seleccionado finalizada.\n\n");
+
+    /* 4) Ejecutar tests para todos los backends disponibles */
+    runAllBackendTests(sourceCode);
 
     printf("Todas las pruebas se ejecutaron exitosamente.\n");
     return 0;
 }
 
 /* ===================== */
-/* ⚡ Funciones de prueba */
+/* Funciones de prueba  */
 /* ===================== */
 
 void runLexerTest(const char *source) {
@@ -130,7 +156,7 @@ void runLexerTest(const char *source) {
 
 void runParserTest(const char *source, AstNode **astOut) {
     printf("Running Parser Test...\n");
-    lexerInit(source);  // Reiniciar el lexer
+    lexerInit(source);
     *astOut = parseProgram();
     if (*astOut) {
         printf("Parser Test Passed!\n\n");
@@ -154,7 +180,6 @@ void runSemanticTest(AstNode *ast) {
 void runCodegenTest(AstNode *ast) {
     printf("Running Code Generation Test...\n");
     generateCode(ast, "output.s");
-
     FILE *file = fopen("output.s", "r");
     if (file) {
         printf("Code Generation Test Passed! Assembly written to output.s\n");
@@ -165,10 +190,48 @@ void runCodegenTest(AstNode *ast) {
 }
 
 void runMemoryStats(void) {
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     printf("\n--- Memory Pool Statistics ---\n");
     printf("Global Allocations: %zu\n", memory_get_global_alloc_count());
     printf("Global Frees: %zu\n", memory_get_global_free_count());
     printf("------------------------------\n\n");
-    #endif
+#endif
+}
+
+/* ==========================================================
+   runAllBackendTests
+   Ejecuta todas las fases (lexer, parser, optimización, semántica, codegen)
+   para cada backend disponible.
+   ========================================================== */
+void runAllBackendTests(const char *source) {
+    // Lista de arquitecturas a probar y sus nombres
+    Architecture archs[] = { ARCH_X86_64, ARCH_ARM32, ARCH_RISCV64, ARCH_WASM };
+    const char *archNames[] = { "x86_64", "ARM32", "RISCV64", "WASM" };
+    int count = sizeof(archs) / sizeof(archs[0]);
+
+    for (int i = 0; i < count; i++) {
+        printf("=== Testing backend: %s ===\n", archNames[i]);
+        setCurrentBackend(archs[i], stdout);
+
+        // Reejecutar el lexer, parser, optimización, semántica y generación de código para este backend
+        lexerInit(source);
+        AstNode *ast = parseProgram();
+        if (!ast) {
+            printf("Parser failed for backend %s\n", archNames[i]);
+            continue;
+        }
+        printf("Parser: AST generado exitosamente para %s.\n", archNames[i]);
+
+        ast = optimizeAST(ast);
+        printf("Optimizer: AST optimizado para %s.\n", archNames[i]);
+
+        analyzeSemantics(ast);
+        printf("Semantic Analysis: Completado para %s.\n", archNames[i]);
+
+        generateCode(ast, "output.s");
+        printf("Code Generation: Ensamblador generado para %s.\n", archNames[i]);
+
+        freeAst(ast);
+        printf("-------------------------------------------------\n\n");
+    }
 }

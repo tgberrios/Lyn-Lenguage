@@ -14,32 +14,32 @@ x: .quad 0
 .global main
 main:
     ; ---- Inicio Sentencia ----
-    mov rax, 10    ; cargar literal numérico
+    i32.const 10
     mov [x], rax ; inicializar varDecl
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, 20    ; cargar literal numérico
+    i32.const 20
     mov [y], rax ; inicializar varDecl
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, [x]    ; cargar variable global
+    global.get $x
     push rax          ; stack = L
-    mov rax, [y]    ; cargar variable global
+    global.get $y
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
+    i32.add
     push rax          ; stack = L
-    mov rax, 2    ; cargar literal numérico
+    i32.const 2
     pop rbx           ; rbx = L, rax = R
-    imul rax, rbx   ; rax = L * R
+    i32.mul
     mov [z], rax ; inicializar varDecl
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, [z]    ; cargar variable global
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    global.get $z
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
@@ -49,21 +49,21 @@ main:
 .global suma
 suma:
     ; ---- Inicio Sentencia ----
-    mov rax, [a]    ; cargar variable global
+    global.get $a
     push rax          ; stack = L
-    mov rax, [b]    ; cargar variable global
+    global.get $b
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
+    i32.add
     ret
     ; ---- Fin Sentencia ----
 
-    ret    ; fin de funcion suma
+    ret    ; fin de función suma
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, [x]    ; cargar variable global
+    global.get $x
     push rax    ; argumento 0
-    mov rax, [y]    ; cargar variable global
+    global.get $y
     push rax    ; argumento 1
     call suma
     mov [resultado], rax ; inicializar varDecl
@@ -72,34 +72,34 @@ suma:
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Resultado: ]    ; cargar literal string
     push rax          ; stack = L
-    mov rax, [resultado]    ; cargar variable global
+    global.get $resultado
     push rax    ; argumento 0
     call to_str
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    i32.add
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
     ; (lambda expresion) => STUB, no implementado
-    mov [doble], rax    ; asignación
+    global.set $doble
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Doble de 5: ]    ; cargar literal string
     push rax          ; stack = L
-    mov rax, 5    ; cargar literal numérico
+    i32.const 5
     push rax    ; argumento 0
     call doble
     push rax    ; argumento 0
     call to_str
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    i32.add
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
@@ -109,9 +109,9 @@ suma:
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, 3    ; cargar literal numérico
+    i32.const 3
     push rax    ; argumento 0
-    mov rax, 4    ; cargar literal numérico
+    i32.const 4
     push rax    ; argumento 1
     call Punto
     mov [p], rax ; inicializar varDecl
@@ -120,69 +120,69 @@ suma:
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Distancia de punto: ]    ; cargar literal string
     push rax          ; stack = L
-    mov rax, [p]    ; cargar variable global
+    global.get $p
     push rax    ; argumento 0
     call distancia
     push rax    ; argumento 0
     call to_str
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    i32.add
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, [resultado]    ; cargar variable global
+    global.get $resultado
     push rax          ; stack = L
-    mov rax, 25    ; cargar literal numérico
+    i32.const 25
     pop rbx           ; rbx = L, rax = R
-    cmp rbx, rax    ; compara L con R
-    setg al         ; al=1 si L>R, 0 si no
-    movzb rax, al   ; rax = 0/1
+    i32.gt_s
     cmp rax, 0
-    je .ELSE_0
+    i32.eqz
+    br_if .ELSE_16
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Resultado mayor a 25]    ; cargar literal string
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
 
-    jmp .ENDIF_1
-.ELSE_0:
+    br .ENDIF_17
+.ELSE_16:
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Resultado menor o igual a 25]    ; cargar literal string
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
 
-.ENDIF_1:
+.ENDIF_17:
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    mov rax, 0    ; cargar literal numérico
+    i32.const 0
     mov [i], rax
-.LOOP_2:
-    mov rax, 3    ; cargar literal numérico
+.LOOP_18:
+    i32.const 3
     mov rbx, rax    ; rbx = end
     mov rax, [i]   ; rax = i
     cmp rax, rbx
-    jge .LOOPEND_3
+    i32.eqz
+    br_if .LOOPEND_19
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Iteración ]    ; cargar literal string
     push rax          ; stack = L
-    mov rax, [i]    ; cargar variable global
+    global.get $i
     push rax    ; argumento 0
     call to_str
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    i32.add
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
@@ -190,8 +190,8 @@ suma:
     mov rax, [i]
     add rax, 1
     mov [i], rax
-    jmp .LOOP_2
-.LOOPEND_3:
+    br .LOOP_18
+.LOOPEND_19:
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
@@ -199,22 +199,22 @@ suma:
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
-    ; (array literal) => no implementado (stub)
+    ; (array literal) => pendiente de implementación
     mov [arr], rax ; inicializar varDecl
     ; ---- Fin Sentencia ----
 
     ; ---- Inicio Sentencia ----
     lea rax, [rip+str_Suma de arreglo: ]    ; cargar literal string
     push rax          ; stack = L
-    mov rax, [arr]    ; cargar variable global
+    global.get $arr
     push rax    ; argumento 0
     call suma_numpy
     push rax    ; argumento 0
     call to_str
     pop rbx           ; rbx = L, rax = R
-    add rax, rbx    ; rax = L + R
-    mov rsi, rax    ; param arg
-    lea rdi, [rip+fmt] ; "Result: %ld\n"
+    i32.add
+    mov rsi, rax
+    lea rdi, [rip+fmt]
     xor eax, eax
     call printf
     ; ---- Fin Sentencia ----
