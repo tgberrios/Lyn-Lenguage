@@ -47,12 +47,12 @@ struct AstNode {
         } program;
         struct {
             char name[256];
-            AstNode *initializer;  // Se usa "initializer" en asignaciones.
+            AstNode *initializer;
         } varAssign;
         struct {
             char name[256];
             char type[64];
-            AstNode *initializer;  // Campo opcional para inicialización.
+            AstNode *initializer;
         } varDecl;
         struct {
             char name[256];
@@ -129,7 +129,7 @@ struct AstNode {
 };
 
 /**
- * @brief Crea un nuevo nodo AST del tipo especificado usando el memory pool.
+ * @brief Crea un nuevo nodo AST del tipo especificado.
  *
  * @param type Tipo del nodo AST.
  * @return AstNode* Puntero al nodo AST creado.
@@ -138,8 +138,6 @@ AstNode *createAstNode(AstNodeType type);
 
 /**
  * @brief Libera la memoria utilizada por un nodo AST y sus descendientes.
- *
- * Retorna cada nodo al memory pool.
  *
  * @param node Puntero al nodo AST a liberar.
  */

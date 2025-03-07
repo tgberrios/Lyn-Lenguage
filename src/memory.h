@@ -114,7 +114,7 @@ size_t memory_pool_get_total_frees(MemoryPool *pool);
 void memory_pool_dumpStats(MemoryPool *pool);
 
 /* ============================
-   Funciones para Tracking Global de Memoria
+   Tracking Global de Memoria
    ============================ */
 
 /**
@@ -130,6 +130,45 @@ size_t memory_get_global_alloc_count(void);
  * @return size_t Número de liberaciones globales.
  */
 size_t memory_get_global_free_count(void);
+
+/* ============================
+   Garbage Collection Opcional (USE_GC)
+   ============================ */
+#ifdef USE_GC
+#include <stdatomic.h>
+
+/**
+ * Estructura de encabezado para objetos gestionados por GC.
+ * Se almacena justo antes de los datos asignados.
+ */
+typedef struct GCHeader {
+    atomic_size_t refCount;
+} GCHeader;
+
+/**
+ * @brief Asigna memoria gestionada por el GC.
+ *
+ * Reserva un bloque con espacio para el encabezado y la data.
+ *
+ * @param size Tamaño de la data solicitada.
+ * @return void* Puntero a la data (después del header).
+ */
+void* memory_alloc_gc(size_t size);
+
+/**
+ * @brief Incrementa el contador de referencias del objeto.
+ *
+ * @param ptr Puntero a la data del objeto.
+ */
+void memory_inc_ref(void *ptr);
+
+/**
+ * @brief Decrementa el contador de referencias y libera el objeto si llega a cero.
+ *
+ * @param ptr Puntero a la data del objeto.
+ */
+void memory_dec_ref(void *ptr);
+#endif /* USE_GC */
 
 #ifdef __cplusplus
 }

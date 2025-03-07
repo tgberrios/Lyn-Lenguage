@@ -5,6 +5,10 @@
 #include <string.h>
 #include <pthread.h>
 
+#ifdef USE_GC
+#include <stdatomic.h>
+#endif
+
 /* ============================
    Wrappers Básicos de Memoria
    ============================ */
@@ -18,22 +22,22 @@ void* memory_alloc(size_t size) {
         fprintf(stderr, "Error: memory_alloc failed to allocate %zu bytes\n", size);
         exit(EXIT_FAILURE);
     }
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     globalAllocCount++;
     fprintf(stderr, "[memory_alloc] ptr=%p size=%zu (globalAllocCount=%zu)\n",
             ptr, size, globalAllocCount);
-    #endif
+#endif
     return ptr;
 }
 
 void memory_free(void *ptr) {
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     if (ptr) {
         globalFreeCount++;
         fprintf(stderr, "[memory_free] ptr=%p (globalFreeCount=%zu)\n",
                 ptr, globalFreeCount);
     }
-    #endif
+#endif
     free(ptr);
 }
 
@@ -43,10 +47,10 @@ void* memory_realloc(void *ptr, size_t new_size) {
         fprintf(stderr, "Error: memory_realloc failed to reallocate to %zu bytes\n", new_size);
         exit(EXIT_FAILURE);
     }
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     fprintf(stderr, "[memory_realloc] old_ptr=%p new_ptr=%p new_size=%zu\n",
             ptr, new_ptr, new_size);
-    #endif
+#endif
     return new_ptr;
 }
 
@@ -54,7 +58,6 @@ void* memory_realloc(void *ptr, size_t new_size) {
    Implementación del Memory Pooling
    ============================ */
 
-/* Definición interna de la estructura MemoryPool */
 struct MemoryPool {
     size_t blockSize;         /* Tamaño de cada bloque */
     size_t poolSize;          /* Número total de bloques */
@@ -65,7 +68,6 @@ struct MemoryPool {
     pthread_mutex_t mutex;    /* Mutex para thread-safety */
 };
 
-/* Cada bloque libre usa los primeros bytes para apuntar al siguiente bloque */
 typedef struct FreeBlock {
     struct FreeBlock *next;
 } FreeBlock;
@@ -101,10 +103,10 @@ MemoryPool *memory_pool_create(size_t blockSize, size_t poolSize, size_t alignme
         ((FreeBlock *)block)->next = pool->freeList;
         pool->freeList = block;
     }
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     fprintf(stderr, "[memory_pool_create] pool=%p blockSize=%zu poolSize=%zu alignment=%zu\n",
             pool, blockSize, poolSize, alignment);
-    #endif
+#endif
     return pool;
 }
 
@@ -115,10 +117,10 @@ void *memory_pool_alloc(MemoryPool *pool) {
         block = pool->freeList;
         pool->freeList = ((FreeBlock *)block)->next;
         pool->totalAllocs++;
-        #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
         fprintf(stderr, "[memory_pool_alloc] pool=%p block=%p (totalAllocs=%zu)\n",
                 pool, block, pool->totalAllocs);
-        #endif
+#endif
     }
     pthread_mutex_unlock(&pool->mutex);
     return block;
@@ -130,10 +132,10 @@ void memory_pool_free(MemoryPool *pool, void *ptr) {
     ((FreeBlock *)ptr)->next = pool->freeList;
     pool->freeList = ptr;
     pool->totalFrees++;
-    #ifdef DEBUG_MEMORY
+#ifdef DEBUG_MEMORY
     fprintf(stderr, "[memory_pool_free] pool=%p block=%p (totalFrees=%zu)\n",
             pool, ptr, pool->totalFrees);
-    #endif
+#endif
     pthread_mutex_unlock(&pool->mutex);
 }
 
@@ -167,7 +169,7 @@ void memory_pool_dumpStats(MemoryPool *pool) {
 }
 
 /* ============================
-   Funciones para Tracking Global de Memoria
+   Tracking Global de Memoria
    ============================ */
 
 size_t memory_get_global_alloc_count(void) {
@@ -177,3 +179,77 @@ size_t memory_get_global_alloc_count(void) {
 size_t memory_get_global_free_count(void) {
     return globalFreeCount;
 }
+
+/* ============================
+   Garbage Collection Opcional
+   ============================ */
+#ifdef USE_GC
+
+/**
+ * @brief Asigna memoria gestionada por el GC.
+ *
+ * Reserva un bloque que incluye un encabezado GCHeader seguido de la data solicitada.
+ *
+ * @param size Tamaño de la data.
+ * @return void* Puntero a la data (después del encabezado).
+ */
+void* memory_alloc_gc(size_t size) {
+    size_t totalSize = sizeof(GCHeader) + size;
+    GCHeader *header = (GCHeader *)malloc(totalSize);
+    if (!header) {
+        fprintf(stderr, "Error: memory_alloc_gc failed to allocate %zu bytes\n", totalSize);
+        exit(EXIT_FAILURE);
+    }
+    atomic_init(&header->refCount, 1);
+#ifdef DEBUG_MEMORY
+    globalAllocCount++;
+    fprintf(stderr, "[memory_alloc_gc] header=%p data_ptr=%p size=%zu, refcount=%zu (globalAllocCount=%zu)\n",
+            header, (void*)(header + 1), size, atomic_load(&header->refCount), globalAllocCount);
+#endif
+    return (void*)(header + 1);
+}
+
+/**
+ * @brief Incrementa el contador de referencias de un objeto GC.
+ */
+void memory_inc_ref(void *ptr) {
+    if (ptr) {
+        GCHeader *header = ((GCHeader *)ptr) - 1;
+        size_t oldCount = atomic_fetch_add(&header->refCount, 1);
+#ifdef DEBUG_MEMORY
+        fprintf(stderr, "[memory_inc_ref] ptr=%p old refCount=%zu, new refCount=%zu\n",
+                ptr, oldCount, atomic_load(&header->refCount));
+#endif
+    }
+}
+
+/**
+ * @brief Decrementa el contador de referencias y libera el objeto si llega a cero.
+ *
+ * Se usa un ciclo de compare_exchange para evitar problemas de concurrencia y se aborta
+ * si se detecta que el contador ya es 0 (lo que indicaría un doble free).
+ */
+void memory_dec_ref(void *ptr) {
+    if (!ptr) return;
+    GCHeader *header = ((GCHeader *)ptr) - 1;
+    size_t expected = atomic_load(&header->refCount);
+    while (expected > 0) {
+        if (atomic_compare_exchange_weak(&header->refCount, &expected, expected - 1)) {
+#ifdef DEBUG_MEMORY
+            fprintf(stderr, "[memory_dec_ref] ptr=%p old refCount=%zu\n", ptr, expected);
+#endif
+            if (expected == 1) {
+                free(header);
+#ifdef DEBUG_MEMORY
+                globalFreeCount++;
+                fprintf(stderr, "[memory_dec_ref] ptr=%p freed (globalFreeCount=%zu)\n", ptr, globalFreeCount);
+#endif
+            }
+            return;
+        }
+        // Si falla, 'expected' se actualiza; repetir el ciclo.
+    }
+    fprintf(stderr, "Error: memory_dec_ref called on ptr=%p with refCount==0\n", ptr);
+    abort();
+}
+#endif /* USE_GC */
